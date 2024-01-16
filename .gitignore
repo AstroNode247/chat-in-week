@@ -1,0 +1,6 @@
+llm_model
+env
+__pycache__
+
+
+*.gguf
