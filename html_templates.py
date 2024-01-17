@@ -10,11 +10,11 @@ css = '''
     background-color: #475063
 }
 .chat-message .avatar {
-  width: 20%;
+  width: 10%;
 }
 .chat-message .avatar img {
-  max-width: 78px;
-  max-height: 78px;
+  width: 50px;
+  height: 50px;
   border-radius: 50%;
   object-fit: cover;
 }
@@ -28,7 +28,7 @@ css = '''
 bot_template = '''
 <div class="chat-message bot">
     <div class="avatar">
-        <img src="https://i.ibb.co/cN0nmSj/Screenshot-2023-05-28-at-02-37-21.png" style="max-height: 78px; max-width: 78px; border-radius: 50%; object-fit: cover;">
+        <img src="https://i.ibb.co/cN0nmSj/Screenshot-2023-05-28-at-02-37-21.png">
     </div>
     <div class="message">{{MSG}}</div>
 </div>

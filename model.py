@@ -12,7 +12,7 @@ def get_model():
 
     # Make sure the model path is correct for your system!
     llm = LlamaCpp(
-        model_path="llm_model\openhermes-2.5-mistral-7b.Q4_K_M.gguf",
+        model_path="llm_model\mistral-7b-instruct-v0.1.Q4_K_M.gguf",
         temperature=0.5,
         max_tokens=1000,
         top_p=1,
@@ -22,16 +22,16 @@ def get_model():
     return llm
 
 def conversation_chain():
-    template = """The following is a friendly conversation between a human and an AI. The AI is talkative and provides lots of specific details from its context. If the AI does not know the answer to a question, it truthfully says it does not know.
+    template = """
+    Respond to the human request. If you don't know the answer to a question, say I don't know.
 
-                Current conversation:
-                {history}
-                Human: {input}
-                AI Assistant:"""
+    {history}
+    Human: {input}
+    AI Assistant:"""
     PROMPT = PromptTemplate(input_variables=["history", "input"], template=template)
     conversation = ConversationChain(
-        prompt=PROMPT,
         llm=get_model(),
+        prompt=PROMPT,
         verbose=True,
         memory=ConversationBufferMemory(ai_prefix="AI Assistant"),
     )
