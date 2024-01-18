@@ -1,19 +1,17 @@
 from langchain.callbacks.manager import CallbackManager
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
+from langchain.embeddings import HuggingFaceBgeEmbeddings
 from langchain_community.llms import LlamaCpp
-from langchain.chains import ConversationChain
-from langchain.memory import ConversationBufferMemory
-from langchain.prompts import PromptTemplate
 
 
-def get_model():
+def get_llm_model():
     # Callbacks support token-wise streaming
     callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
 
-    # Make sure the model path is correct for your system!
     llm = LlamaCpp(
         model_path="llm_model\mistral-7b-instruct-v0.1.Q4_K_M.gguf",
         temperature=0.5,
+        n_ctx=1024,
         max_tokens=1000,
         top_p=1,
         callback_manager=callback_manager,
@@ -21,19 +19,12 @@ def get_model():
     )
     return llm
 
-def conversation_chain():
-    template = """
-    Respond to the human request. If you don't know the answer to a question, say I don't know.
-
-    {history}
-    Human: {input}
-    AI Assistant:"""
-    PROMPT = PromptTemplate(input_variables=["history", "input"], template=template)
-    conversation = ConversationChain(
-        llm=get_model(),
-        prompt=PROMPT,
-        verbose=True,
-        memory=ConversationBufferMemory(ai_prefix="AI Assistant"),
+def get_embedding_model():
+    model_name = "BAAI/bge-small-en"
+    model_kwargs = {"device": "cpu"}
+    encode_kwargs = {"normalize_embeddings": True}
+    embedding = HuggingFaceBgeEmbeddings(
+        model_name=model_name, model_kwargs=model_kwargs, encode_kwargs=encode_kwargs
     )
 
-    return conversation
+    return embedding
