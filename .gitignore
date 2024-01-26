@@ -2,6 +2,7 @@ llm_model
 env
 pdfs
 __pycache__
+notebook
 
 
 *.gguf

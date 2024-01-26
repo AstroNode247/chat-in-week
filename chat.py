@@ -24,11 +24,12 @@ def conversation_chain():
 
     return conversation
 
-def retrieval_chain(docs):
-    db = load_vectorized_docs(docs)
+def retrieval_chain(collection_name, docs=None):
+    db = load_vectorized_docs(collection_name, docs=docs)
     qa_chain = RetrievalQA.from_chain_type(
         get_llm_model(),
-        retriever=db.as_retriever()
+        retriever=db.as_retriever(),
+        verbose=True
     )
 
     return qa_chain
@@ -38,7 +39,8 @@ if __name__ == '__main__':
     docs = load_pdf_document("pdfs\Selling_the_Invisible_A_Field_Guide_to_M.pdf")
     docs = split_document(docs)
 
-    qa_chain = retrieval_chain(docs)
+    qa_chain = retrieval_chain(collection_name="Selling_the_Invisible_A_Field_Guide_to_M", 
+                               docs=None)
 
 
     print("Press 'q' to quit")

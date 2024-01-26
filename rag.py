@@ -1,8 +1,6 @@
 # Document loading
-import weaviate
-
 from pypdf import PdfReader
-from langchain_community.vectorstores import Weaviate
+from langchain_community.vectorstores import Milvus
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
@@ -34,11 +32,16 @@ def split_document(docs):
 
 
 # Vectorization
-def load_vectorized_docs(docs):
+def load_vectorized_docs(collection_name, docs=None):
     # Load Weaviate client 
     embeddings = get_embedding_model()
-    client = weaviate.Client(url = "http://localhost:8080")
-    db = Weaviate.from_documents(docs, embeddings, client=client, by_text=False)
+    connection_args={"host": "127.0.0.1", "port": "19530"}
+    if docs is None:
+       db = Milvus(embeddings, connection_args=connection_args,
+                                collection_name=collection_name) 
+    else:
+        db = Milvus.from_documents(docs, embeddings, connection_args=connection_args,
+                                    collection_name=collection_name)
 
     return db
 
@@ -48,7 +51,7 @@ if __name__ == "__main__":
     docs = load_pdf_document("pdfs\Selling_the_Invisible_A_Field_Guide_to_M.pdf")
     docs = split_document(docs)
 
-    db = load_vectorized_docs(docs)
+    db = load_vectorized_docs("Selling_the_Invisible_A_Field_Guide_to_M", docs)
 
     query = "What are the rules of marketing ?"
     docs = load_vectorized_docs(docs).similarity_search(query)
