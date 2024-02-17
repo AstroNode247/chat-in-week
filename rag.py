@@ -3,6 +3,7 @@ from pypdf import PdfReader
 from langchain_community.vectorstores import Milvus
 from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders.csv_loader import CSVLoader
 
 from model import get_embedding_model
 
@@ -15,8 +16,15 @@ def get_pdf_document(pdf_docs):
             text += page.extract_text()
     return text
 
+
 def load_pdf_document(pdf_docs):
     loader = PyPDFLoader(pdf_docs)
+    docs = loader.load()
+    return docs
+
+
+def load_csv_document(csv_doc):
+    loader = CSVLoader(csv_doc)
     docs = loader.load()
     return docs
 
@@ -48,12 +56,14 @@ def load_vectorized_docs(collection_name, docs=None):
 
 if __name__ == "__main__":
     # Load the documents
-    docs = load_pdf_document("pdfs\Selling_the_Invisible_A_Field_Guide_to_M.pdf")
+    print("Prepraring data")
+    docs = load_csv_document("data\events_clean.csv")
     docs = split_document(docs)
 
-    db = load_vectorized_docs("Selling_the_Invisible_A_Field_Guide_to_M", docs)
+    print("Load to Milvus")
+    db = load_vectorized_docs("Event_Ecom", docs)
 
-    query = "What are the rules of marketing ?"
+    query = "I want to find a gift for my sister. What is the best phone ?"
     docs = load_vectorized_docs(docs).similarity_search(query)
 
     print(docs[:3])

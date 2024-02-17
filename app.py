@@ -1,6 +1,6 @@
 import os
 import streamlit as st
-from chat import retrieval_chain, conversation_chain
+from chat import retrieval_chain, conversation_chain, recommendation_chain
 from query import all_documents
 from html_templates import css, bot_template, user_template
 from rag import load_pdf_document, split_document, get_pdf_document
@@ -98,13 +98,13 @@ if not "open_sidebar" in st.session_state:
 # if st.session_state.open_sidebar:
     # new_title, new_question = generate_ticket()
 with st.sidebar:
-    st.subheader("Choose a document")
+    st.subheader("s a document")
     all_docs = all_documents()
 
     for doc in all_docs:
         if st.button(doc):
             with st.spinner("Processing"):
-                st.session_state.conversation = retrieval_chain(doc)
+                st.session_state.conversation = recommendation_chain(doc)
                 st.session_state[f"generated"] = []
                 st.session_state[f"user_input"] = []
                 rename_chat(doc)

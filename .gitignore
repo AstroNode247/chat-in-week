@@ -3,6 +3,7 @@ env
 pdfs
 __pycache__
 notebook
+data
 
 
 *.gguf
