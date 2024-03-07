@@ -4,6 +4,11 @@ pdfs
 __pycache__
 notebook
 data
-
+.ipynb_checkpoints
+.env
+.idea
 
 *.gguf
+*.txt
+*.pdf
+!requirements.txt

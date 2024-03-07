@@ -1,9 +1,10 @@
 import os
 import streamlit as st
-from chat import retrieval_chain, conversation_chain, recommendation_chain
+
+from chat import Chat
+from model import ChatGemini
 from query import all_documents
-from html_templates import css, bot_template, user_template
-from rag import load_pdf_document, split_document, get_pdf_document
+from rag import PDFLoader
 
 import tempfile
 
@@ -30,13 +31,15 @@ st.markdown(styl, unsafe_allow_html=True)
 
 st.header("MistRAG")
 
+
 # >>>> UI interations <<<<
 
 def handle_user_input(user_input):
     # TODO Add memory
     with st.spinner(""):
-        response = st.session_state.conversation({'query': user_input})
+        response = st.session_state.conversation.invoke(user_input)
     return response
+
 
 def chat_input():
     user_input = st.chat_input("What service questions can I help you resolve today?")
@@ -46,9 +49,8 @@ def chat_input():
             st.write(user_input)
         with st.chat_message("assistant"):
             # Generate the response
-            output = handle_user_input(user_input)['result']
+            output = handle_user_input(user_input)
             st.write(output)
-
 
             st.session_state[f"user_input"].append(user_input)
             st.session_state[f"generated"].append(output)
@@ -83,6 +85,7 @@ def display_chat():
     if st.session_state.document:
         st.subheader(st.session_state.document)
 
+
 def open_sidebar():
     st.session_state.open_sidebar = True
 
@@ -90,21 +93,26 @@ def open_sidebar():
 def close_sidebar():
     st.session_state.open_sidebar = False
 
+
 def rename_chat(document):
     st.session_state.document = document
+
 
 if not "open_sidebar" in st.session_state:
     st.session_state.open_sidebar = False
 # if st.session_state.open_sidebar:
-    # new_title, new_question = generate_ticket()
+# new_title, new_question = generate_ticket()
 with st.sidebar:
-    st.subheader("s a document")
+    st.subheader("Choose a document")
     all_docs = all_documents()
 
     for doc in all_docs:
         if st.button(doc):
             with st.spinner("Processing"):
-                st.session_state.conversation = recommendation_chain(doc)
+                # st.session_state.conversation = retrieval_chain(doc)
+                st.session_state.conversation = Chat().chain(ChatGemini(),
+                                                             PDFLoader(),
+                                                             collection_name=doc)
                 st.session_state[f"generated"] = []
                 st.session_state[f"user_input"] = []
                 rename_chat(doc)
@@ -121,9 +129,10 @@ with st.sidebar:
                 path = os.path.join(temp_dir, files.name)
                 with open(path, "wb") as f:
                     f.write(files.getvalue())
-                docs = load_pdf_document(path)
-                docs = split_document(docs)
-                st.session_state.conversation = retrieval_chain(collection_name, docs=docs)
+                st.session_state.conversation = Chat().chain(ChatGemini(),
+                                                             PDFLoader(),
+                                                             collection_name=doc,
+                                                             path=path)
                 st.session_state[f"generated"] = []
                 st.session_state[f"user_input"] = []
 
@@ -131,4 +140,3 @@ if __name__ == '__main__':
     # >>>> UI: show chat <<<<
     display_chat()
     chat_input()
-

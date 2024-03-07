@@ -1,78 +1,75 @@
 # Document loading
-from pypdf import PdfReader
-from langchain_community.vectorstores import Milvus
-from langchain_community.document_loaders import PyPDFLoader
+from abc import ABC, abstractmethod
+
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import PyPDFLoader
 from langchain_community.document_loaders.csv_loader import CSVLoader
+from langchain_community.vectorstores import Milvus
 
-from model import get_embedding_model
-
-# Load PDF document
-def get_pdf_document(pdf_docs):
-    text = ""
-    for pdf in pdf_docs:
-        pdf_reader = PdfReader(pdf)
-        for page in pdf_reader.pages:
-            text += page.extract_text()
-    return text
+from model import ChatGemini, BaseLLM
 
 
-def load_pdf_document(pdf_docs):
-    loader = PyPDFLoader(pdf_docs)
-    docs = loader.load()
-    return docs
+class FileLoader(ABC):
+    def __init__(self):
+        self.docs = None
+
+    @abstractmethod
+    def load_file(self, path: str) -> str:
+        pass
+
+    def split_document(self):
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=500,
+            chunk_overlap=100
+        )
+        self.docs = text_splitter.split_documents(self.docs)
+
+    def load_embeddings(self, llm: BaseLLM, collection_name: str, path: str = None):
+        connection_args = {"host": "127.0.0.1", "port": "19530"}
+        self.collection_name = collection_name
+        if path is None:
+            self.collection_name = collection_name
+            db = Milvus(llm.embedding, connection_args=connection_args,
+                        collection_name=self.collection_name)
+        else:
+            self.load_file(path=path)
+            self.split_document()
+            db = Milvus.from_documents(self.docs, llm.embedding, connection_args=connection_args,
+                                       collection_name=self.collection_name)
+
+        return db
 
 
-def load_csv_document(csv_doc):
-    loader = CSVLoader(csv_doc)
-    docs = loader.load()
-    return docs
+class PDFLoader(FileLoader):
+    def __init__(self):
+        super().__init__()
 
-# Document splitting
-def split_document(docs):
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=500,
-        chunk_overlap=100
-    )
-    docs_splitted = text_splitter.split_documents(docs)
-
-    return docs_splitted
+    def load_file(self, path: str):
+        loader = PyPDFLoader(path)
+        self.docs = loader.load()
 
 
-# Vectorization
-def load_vectorized_docs(collection_name, docs=None):
-    # Load Weaviate client 
-    embeddings = get_embedding_model()
-    connection_args={"host": "127.0.0.1", "port": "19530"}
-    if docs is None:
-       db = Milvus(embeddings, connection_args=connection_args,
-                                collection_name=collection_name) 
-    else:
-        db = Milvus.from_documents(docs, embeddings, connection_args=connection_args,
-                                    collection_name=collection_name)
+class CSVParser(FileLoader):
+    def __init__(self):
+        super().__init__()
 
-    return db
+    def load_file(self, path: str):
+        loader = CSVLoader(path)
+        self.docs = loader.load()
 
 
 if __name__ == "__main__":
     # Load the documents
     print("Prepraring data")
-    docs = load_csv_document("data\events_clean.csv")
-    docs = split_document(docs)
+    chat_model = ChatGemini()
+    db = PDFLoader().load_embeddings(path="pdfs\Selling_the_Invisible_A_Field_Guide_to_M.pdf",
+                                collection_name="Invisible_Man", llm=chat_model)
 
-    print("Load to Milvus")
-    db = load_vectorized_docs("Event_Ecom", docs)
-
-    query = "I want to find a gift for my sister. What is the best phone ?"
-    docs = load_vectorized_docs(docs).similarity_search(query)
+    query = "How to sell the invisible"
+    docs = db.similarity_search(query)
 
     print(docs[:3])
-
-
-    
 
 # Model loading
 
 # Chain creation
-
-
