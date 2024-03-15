@@ -11,6 +11,7 @@ from model import ChatGemini, BaseLLM
 
 class FileLoader(ABC):
     def __init__(self):
+        self.collection_name = None
         self.docs = None
 
     @abstractmethod
@@ -62,10 +63,10 @@ if __name__ == "__main__":
     # Load the documents
     print("Prepraring data")
     chat_model = ChatGemini()
-    db = PDFLoader().load_embeddings(path="pdfs\Selling_the_Invisible_A_Field_Guide_to_M.pdf",
-                                collection_name="Invisible_Man", llm=chat_model)
+    db = CSVParser().load_embeddings(path="data\events_clean.csv",
+                                collection_name="ecommerce_events", llm=chat_model)
 
-    query = "How to sell the invisible"
+    query = "What are the phones disponible ?"
     docs = db.similarity_search(query)
 
     print(docs[:3])

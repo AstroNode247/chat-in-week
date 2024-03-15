@@ -1,12 +1,15 @@
 import os
-import streamlit as st
-
-from chat import Chat
-from model import ChatGemini
-from query import all_documents
-from rag import PDFLoader
-
 import tempfile
+
+import streamlit as st
+from langchain_core.messages import HumanMessage
+
+from chat import Chat, ChatWithData, ChatBot
+from model import ChatGemini
+from prompt_hub import general_rag_prompt, recommendation_rag_prompt
+from query import all_documents
+# from query import all_documents
+from rag import PDFLoader, CSVParser
 
 styl = f"""
 <style>
@@ -37,8 +40,9 @@ st.header("MistRAG")
 def handle_user_input(user_input):
     # TODO Add memory
     with st.spinner(""):
-        response = st.session_state.conversation.invoke(user_input)
-    return response
+        response = st.session_state.conversation.chat(user_input)
+    print(response)
+    return response['answer'].content
 
 
 def chat_input():
@@ -51,7 +55,6 @@ def chat_input():
             # Generate the response
             output = handle_user_input(user_input)
             st.write(output)
-
             st.session_state[f"user_input"].append(user_input)
             st.session_state[f"generated"].append(output)
 
@@ -94,6 +97,14 @@ def close_sidebar():
     st.session_state.open_sidebar = False
 
 
+@st.cache_data()
+def initialize_chatbot():
+    chatbot = ChatBot(ChatGemini(),
+                      system_prompt="You are a helpful assistant. Answer all questions to the best of your ability.")
+    chatbot.add_history(type="hybrid")
+    st.session_state.conversation = chatbot
+
+
 def rename_chat(document):
     st.session_state.document = document
 
@@ -102,17 +113,17 @@ if not "open_sidebar" in st.session_state:
     st.session_state.open_sidebar = False
 # if st.session_state.open_sidebar:
 # new_title, new_question = generate_ticket()
-with st.sidebar:
+with (st.sidebar):
     st.subheader("Choose a document")
     all_docs = all_documents()
 
     for doc in all_docs:
         if st.button(doc):
             with st.spinner("Processing"):
-                # st.session_state.conversation = retrieval_chain(doc)
-                st.session_state.conversation = Chat().chain(ChatGemini(),
-                                                             PDFLoader(),
-                                                             collection_name=doc)
+                chatbot = ChatWithData(ChatGemini())
+                chatbot.make_chain(doc, PDFLoader())
+                st.session_state.conversation = chatbot
+    
                 st.session_state[f"generated"] = []
                 st.session_state[f"user_input"] = []
                 rename_chat(doc)
@@ -120,7 +131,7 @@ with st.sidebar:
     st.subheader("Or create a new one")
     collection_name = st.text_input("New document name")
     files = st.file_uploader(
-        "Upload your PDFs here and click on 'Process'")
+        "Upload your file here and click on 'Process'")
     if collection_name and files is not None:
         # create conversation chain
         if st.button("Process"):
@@ -129,14 +140,22 @@ with st.sidebar:
                 path = os.path.join(temp_dir, files.name)
                 with open(path, "wb") as f:
                     f.write(files.getvalue())
-                st.session_state.conversation = Chat().chain(ChatGemini(),
-                                                             PDFLoader(),
-                                                             collection_name=doc,
-                                                             path=path)
+                if path.split(".")[1] == "csv":
+                    file_loader = CSVParser()
+                else:
+                    file_loader = PDFLoader()
+
+                chatbot = ChatWithData(ChatGemini())
+                chatbot.make_chain(collection_name, PDFLoader(), path=path)
+
+                st.session_state.conversation = chatbot
+
                 st.session_state[f"generated"] = []
                 st.session_state[f"user_input"] = []
+                rename_chat(collection_name)
 
 if __name__ == '__main__':
     # >>>> UI: show chat <<<<
+    initialize_chatbot()
     display_chat()
     chat_input()

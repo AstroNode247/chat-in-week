@@ -1,52 +1,21 @@
 from abc import ABC, abstractmethod
 
+from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnablePassthrough
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.runnables import RunnablePassthrough, RunnableBranch
+from langchain_core.runnables.history import RunnableWithMessageHistory
 
 from model import BaseLLM, ChatGemini
-from rag import PDFLoader, FileLoader
+from rag import FileLoader, PDFLoader
 
 
-class Chat:
-    """Build the all stuff for generating the chatbot for RAG case. Chain them together and load the chatbot
-    to chat with human."""
-
-    def __init__(self):
-        self.db = None
-        self.llm = None
-
-    def chain(self, llm: BaseLLM, loader: FileLoader, collection_name: str, path: str = None):
-        self.llm = llm
-        self.db = loader.load_embeddings(llm=self.llm,
-                                         collection_name=collection_name,
-                                         path=path)
-
-        system_prompt = """Use the following context to answer the question at the end. Detail the answer
-                to provide the most insightful response.
-            
-                {context}"""
-
-        chat_template = RAGConversation().make_chat_prompt(system_prompt)
-
-        def format_docs(docs):
-            return "\n\n".join(doc.page_content for doc in docs)
-
-        rag_chain = (
-                {"context": self.db.as_retriever() | format_docs, "question": RunnablePassthrough()}
-                | chat_template
-                | self.llm.model
-                | StrOutputParser()
-        )
-        return rag_chain
-
-
-class ConversationManagement(ABC):
+class PromptTemplateManagement(ABC):
     """Conversation management from history, prompt template to RAG prompt.
     Wrapper for the underlying chat state between the user and the chatbot.
     It is used as context for handling the behavior of the chatbot by leveraging the system prompt."""
 
-    def __init__(self,):
+    def __init__(self, ):
         self.chat_template = None
 
     @abstractmethod
@@ -55,96 +24,204 @@ class ConversationManagement(ABC):
         pass
 
 
-class RAGConversation(ConversationManagement):
-    """Manage a RAG based Chatbot. A RAG prompt must contains a {context} and a {question} keyword"""
+class PromptTemplate(PromptTemplateManagement):
     def __init__(self):
         super().__init__()
 
     def make_chat_prompt(self, system_prompt):
-        """Create a chat template that best suit the RAG management system"""
         self.chat_template = ChatPromptTemplate.from_messages([
             ("system", system_prompt),
-            ("human", "{question}")
+            MessagesPlaceholder(variable_name="chat_history"),
+            ("user", "{input}")
         ])
         return self.chat_template
 
 
-# def conversation_chain():
-#     template = """
-#     Respond to the human request. If you don't know the answer to a question, say I don't know.
-#
-#     {history}
-#     Human: {input}
-#     AI Assistant:"""
-#     PROMPT = PromptTemplate(input_variables=["history", "input"], template=template)
-#     conversation = ConversationChain(
-#         llm=get_llm_model(),
-#         prompt=PROMPT,
-#         verbose=True,
-#         memory=ConversationBufferMemory(ai_prefix="AI Assistant"),
-#     )
-#
-#     qa_chain = RetrievalQA.from_chain_type(
-#         get_llm_model(),
-#         retriever=db.as_retriever(),
-#         verbose=True,
-#         chain_type_kwargs={'prompt': QA_CHAIN_PROMPT}
-#     )
-#     return conversation
-#
-#
-# def retrieval_chain(collection_name, docs=None):
-#     template = """Use the following context to answer the question at the end.
-#     If you don't know the answer, just say you don't know, don't try to make up an answer.
-#     Always say “Thanks for asking!” » at the end of the answer.
-#
-#     {context}
-#
-#     Question: {question}
-#
-#     Helpful answer:"""
-#     QA_CHAIN_PROMPT = PromptTemplate.from_template(template)
-#
-#     db = load_vectorized_docs(collection_name, docs=docs)
-#     return qa_chain
-#
-#
-# def recommendation_chain(collection_name, docs=None):
-#     template = """You are a sales person that sale users electronic product that match their preferences.
-#     For each question, suggest three product, with a short description of the plot and the reason why the user migth like it.
-#     If the user request is not clear, ask for more information.
-#     Use only the following pieces of data to recommand to the user at the end. When you have finished
-#     to recommend ask this question : "What else can I do ?"
-#
-#     {context}
-#
-#     user: {question}
-#     Your response:"""
-#
-#     QA_CHAIN_PROMPT = PromptTemplate.from_template(template)
-#
-#     db = load_vectorized_docs(collection_name, docs=docs)
-#     qa_chain = RetrievalQA.from_chain_type(
-#         get_llm_model(),
-#         retriever=db.as_retriever(),
-#         verbose=True,
-#         chain_type_kwargs={'prompt': QA_CHAIN_PROMPT}
-#     )
-#
-#     return qa_chain
+class Chat(ABC):
+    def __init__(self, llm: BaseLLM, system_prompt: str):
+        self.llm = llm
+        self.chat_template = None
+        self.chat_history = None
+        self._chain = None
+
+    def get_chain(self):
+        return self._chain
+
+    def chat(self, message: str):
+        ai_response = self._chain.invoke(
+            {"input": message},
+            {"configurable": {"session_id": "unused"}}
+        )
+        return ai_response
+    
+    
+    def add_history(self, type: str = None):
+        if not type:
+            return self._chain
+        elif type == "summarize":
+            self._chain = (
+                    RunnablePassthrough.assign(messages_summarized=self._summarize_messages)
+                    | self._chain
+            )
+        elif type == "trim":
+            self._chain = (
+                    RunnablePassthrough.assign(messages_summarized=self._trim_messages)
+                    | self._chain
+            )
+        elif type == "hybrid":
+            self._chain = (
+                    RunnablePassthrough.assign(messages_summarized=self._trim_and_summarize_messages)
+                    | self._chain
+            )
+        else:
+            raise TypeError(f"Type should be 'summarize' or 'trim' or 'None'")
+        return self._chain
+
+
+    def _summarize_messages(self, chain_input):
+        stored_messages = self.chat_history.messages
+        if len(stored_messages) == 0:
+            return False
+
+        prompt = "Distill the above chat messages into a single summary message.\
+                 Include as many specific details as you can."
+        summarization_prompt = ChatPromptTemplate.from_messages([
+            MessagesPlaceholder(variable_name="chat_history"),
+            (
+                "user",
+                prompt
+            ),
+        ])
+        summarization_chain = summarization_prompt | self.llm.model
+        summary_message = summarization_chain.invoke({"chat_history": stored_messages})
+        self.chat_history.clear()
+        self.chat_history.add_user_message(prompt)
+        self.chat_history.add_ai_message(summary_message.content)
+        return True
+
+    def _trim_messages(self, chain_input):
+        stored_messages = self.chat_history.messages
+        if len(stored_messages) <= 2:
+            return False
+
+        self.chat_history.clear()
+
+        for message in stored_messages[-2:]:
+            self.chat_history.add_message(message)
+
+        return True
+
+    def _trim_and_summarize_messages(self, chain_input):
+        n_messages = 4
+        stored_messages = self.chat_history.messages
+        self.chat_history.clear()
+        if len(stored_messages) == 0:
+            return False
+
+        if len(stored_messages) > n_messages:
+            prompt = "Distill the above chat messages into a single summary message.\
+             Include as many specific details as you can."
+            summarization_prompt = ChatPromptTemplate.from_messages([
+                MessagesPlaceholder(variable_name="chat_history"),
+                (
+                    "user",
+                    prompt
+                ),
+            ])
+
+            summarization_chain = summarization_prompt | self.llm.model
+            summary_message = summarization_chain.invoke({"chat_history": stored_messages[:-n_messages]})
+
+            self.chat_history.add_user_message(prompt)
+            self.chat_history.add_ai_message(summary_message.content)
+
+        for message in stored_messages[-n_messages:]:
+            self.chat_history.add_message(message)
+
+
+class ChatWithData(Chat):
+    """Build the all stuff for generating the chatbot for RAG case. Chain them together and load the chatbot
+    to chat with human."""
+
+    def __init__(self, llm: BaseLLM, system_prompt: str = """
+    Answer the user's questions based on the below context.
+    
+    <context>
+    {context}
+    </context>
+    """):
+        super().__init__(llm, system_prompt)
+        self.db = None
+        self.llm = llm
+        self.chat_template = PromptTemplate().make_chat_prompt(system_prompt)
+        self.query_template = PromptTemplate().make_chat_prompt(
+            """Answer the user's questions based on the below context.""")
+        self.chat_history = ChatMessageHistory()
+        self._chain = None
+        self._query_chain = None
+
+    def make_chain(self, collection_name: str, loader: FileLoader = None, path: str = None):
+        self.db = loader.load_embeddings(path=path, collection_name=collection_name, llm=self.llm)
+        retriever = self.db.as_retriever()
+
+        self._query_chain = self.query_template | self.llm.model
+        self._query_chain = RunnableWithMessageHistory(
+            self._query_chain,
+            lambda session_id: self.chat_history,
+            input_messages_key="input",
+            history_messages_key="chat_history"
+        )
+
+        self._query_chain = RunnableBranch(
+            (
+                lambda x: len(x.get("chat_history", [])) == 1,
+                (lambda x: x["chat_history"][-1].content) | retriever
+            ),
+            self._query_chain | StrOutputParser() | retriever
+        ).with_config(run_name="chat_mode")
+
+        document_chain = self.chat_template | self.llm.model
+        document_chain = RunnableWithMessageHistory(
+            document_chain,
+            lambda session_id: self.chat_history,
+            input_messages_key="input",
+            history_messages_key="chat_history"
+        )
+        self._chain = RunnablePassthrough.assign(
+            context=self._query_chain
+        ).assign(answer=document_chain)
+
+
+
+class ChatBot(Chat):
+
+    def __init__(self, llm: BaseLLM, system_prompt: str):
+        super().__init__(llm, system_prompt)
+        self.llm = llm
+        self.chat_template = PromptTemplate().make_chat_prompt(system_prompt)
+        self.chat_history = ChatMessageHistory()
+        self._chain = self.chat_template | self.llm.model
+        self._chain = RunnableWithMessageHistory(
+            self._chain,
+            lambda session_id: self.chat_history,
+            input_messages_key="input",
+            history_messages_key="chat_history"
+        )
 
 
 if __name__ == '__main__':
     print("Loading model...")
-    qa_chain = Chat().chain(ChatGemini(), PDFLoader(), collection_name="Invisible_Man")
-
+    chatbot = ChatWithData(ChatGemini())
+    chatbot.make_chain("Selling_Invisible", PDFLoader())
+    chatbot.add_history("trim")
+    
     print("Press 'q' to quit")
     while True:
         question = input("User : ")
         if question == 'q':
             print("Bye")
+            print(chatbot.chat_history.messages)
             break
         else:
-            result = qa_chain.invoke(question)
-            answer = result
-            print(f'Answer : \n{answer}')
+            answer = chatbot.chat(question)
+            print(f'Answer : \n{answer["answer"].content}')
