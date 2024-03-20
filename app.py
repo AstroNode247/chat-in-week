@@ -4,7 +4,7 @@ import tempfile
 import streamlit as st
 from langchain_core.messages import HumanMessage
 
-from chat import Chat, ChatWithData, ChatBot
+from chat import Chat, ChatWithData, ChatBot, ChatAgent
 from model import ChatGemini
 from prompt_hub import general_rag_prompt, recommendation_rag_prompt
 from query import all_documents
@@ -42,7 +42,7 @@ def handle_user_input(user_input):
     with st.spinner(""):
         response = st.session_state.conversation.chat(user_input)
     print(response)
-    return response['answer'].content
+    return response['output']
 
 
 def chat_input():
@@ -99,10 +99,11 @@ def close_sidebar():
 
 @st.cache_data()
 def initialize_chatbot():
-    chatbot = ChatBot(ChatGemini(),
-                      system_prompt="You are a helpful assistant. Answer all questions to the best of your ability.")
-    chatbot.add_history(type="hybrid")
-    st.session_state.conversation = chatbot
+    # chatbot = ChatBot(ChatGemini(),
+    #                   system_prompt="You are a helpful assistant. Answer all questions to the best of your ability.")
+    # chatbot.add_history(type="hybrid")
+    chat = ChatAgent(ChatGemini())
+    st.session_state.conversation = chat
 
 
 def rename_chat(document):

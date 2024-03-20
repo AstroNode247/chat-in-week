@@ -1,13 +1,19 @@
 from abc import ABC, abstractmethod
 
+import requests
+from langchain import hub
+from langchain.agents import initialize_agent, create_structured_chat_agent, AgentExecutor
+from langchain.memory import ConversationBufferWindowMemory
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnablePassthrough, RunnableBranch
 from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_core.tools import BaseTool
 
 from model import BaseLLM, ChatGemini
 from rag import FileLoader, PDFLoader
+from tools import OrderTool, OrderIdIncompleteTool
 
 
 class PromptTemplateManagement(ABC):
@@ -53,8 +59,7 @@ class Chat(ABC):
             {"configurable": {"session_id": "unused"}}
         )
         return ai_response
-    
-    
+
     def add_history(self, type: str = None):
         if not type:
             return self._chain
@@ -76,7 +81,6 @@ class Chat(ABC):
         else:
             raise TypeError(f"Type should be 'summarize' or 'trim' or 'None'")
         return self._chain
-
 
     def _summarize_messages(self, chain_input):
         stored_messages = self.chat_history.messages
@@ -139,6 +143,25 @@ class Chat(ABC):
             self.chat_history.add_message(message)
 
 
+class ChatAgent(Chat):
+    def __init__(self, llm: BaseLLM, system_prompt: str = None):
+        super().__init__(llm, system_prompt)
+        self.llm = llm.model
+        self.chat_template = hub.pull("hwchase17/structured-chat-agent")
+        self.chat_history = ConversationBufferWindowMemory(
+            memory_key='chat_history',
+            k=3,
+            return_messages=True
+        )
+        self.tools = [OrderTool(), OrderIdIncompleteTool()]
+
+        # create our agent
+        agent = create_structured_chat_agent(self.llm, self.tools, self.chat_template)
+        self._chain = AgentExecutor(
+            agent=agent, tools=self.tools, verbose=True, memory=self.chat_history, handle_parsing_errors=True
+        )
+
+
 class ChatWithData(Chat):
     """Build the all stuff for generating the chatbot for RAG case. Chain them together and load the chatbot
     to chat with human."""
@@ -192,7 +215,6 @@ class ChatWithData(Chat):
         ).assign(answer=document_chain)
 
 
-
 class ChatBot(Chat):
 
     def __init__(self, llm: BaseLLM, system_prompt: str):
@@ -214,13 +236,12 @@ if __name__ == '__main__':
     chatbot = ChatWithData(ChatGemini())
     chatbot.make_chain("Selling_Invisible", PDFLoader())
     chatbot.add_history("trim")
-    
+
     print("Press 'q' to quit")
     while True:
         question = input("User : ")
         if question == 'q':
             print("Bye")
-            print(chatbot.chat_history.messages)
             break
         else:
             answer = chatbot.chat(question)
