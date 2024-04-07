@@ -7,7 +7,6 @@ data
 .ipynb_checkpoints
 .env
 .idea
-fast_api
 
 *.gguf
 *.txt
