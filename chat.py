@@ -13,7 +13,7 @@ from langchain_core.tools import BaseTool
 
 from model import BaseLLM, ChatGemini
 from rag import FileLoader, PDFLoader
-from tools import OrderTool, OrderIdIncompleteTool
+from tools import OrderTool, OrderIdIncompleteTool, RecommendTools
 
 
 class PromptTemplateManagement(ABC):
@@ -153,7 +153,7 @@ class ChatAgent(Chat):
             k=3,
             return_messages=True
         )
-        self.tools = [OrderTool(), OrderIdIncompleteTool()]
+        self.tools = [OrderTool(), RecommendTools()]
 
         # create our agent
         agent = create_structured_chat_agent(self.llm, self.tools, self.chat_template)

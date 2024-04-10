@@ -5,7 +5,7 @@ import streamlit as st
 from langchain_core.messages import HumanMessage
 
 from chat import Chat, ChatWithData, ChatBot, ChatAgent
-from model import ChatGemini
+from model import ChatGemini, MistralLLM
 from prompt_hub import general_rag_prompt, recommendation_rag_prompt
 from query import all_documents
 # from query import all_documents
@@ -97,7 +97,7 @@ def close_sidebar():
     st.session_state.open_sidebar = False
 
 
-@st.cache_data()
+# @st.cache_data()
 def initialize_chatbot():
     # chatbot = ChatBot(ChatGemini(),
     #                   system_prompt="You are a helpful assistant. Answer all questions to the best of your ability.")
@@ -157,6 +157,7 @@ with (st.sidebar):
 
 if __name__ == '__main__':
     # >>>> UI: show chat <<<<
-    initialize_chatbot()
+    if "conversasion" not in st.session_state:
+        initialize_chatbot()
     display_chat()
     chat_input()

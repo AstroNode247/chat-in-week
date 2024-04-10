@@ -1,8 +1,10 @@
 # Define the GET API route
+import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from retail_recs import recommend_stuff
 import models
 import sqlalchemy as sa
 
@@ -34,7 +36,6 @@ async def get_orders():
 
 @router.get("/orders/{order_id}")
 async def get_order_by_id(order_id: str):
-    print(order_id)
     with engine.connect() as conn:
         result = conn.execute(text(f"SELECT * FROM ecom.order WHERE ecom.order.OrderId = '{order_id}'"))  # Assuming a table named 'orders'
         # Convert row to dictionary
@@ -54,3 +55,12 @@ async def healthcheck():
     * Version de l'API (str)
     """
     return {"version": "1.0.0"}
+
+
+@router.get("/content_retail")
+async def content_retail_recommmendation(user_id: int):
+    recs = recommend_stuff(user_id=user_id)
+    recs_json = recs[:2].to_json(orient='records')
+    parsed_response = json.loads(recs_json)
+    return parsed_response
+    

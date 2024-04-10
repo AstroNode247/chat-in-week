@@ -23,7 +23,7 @@ class MistralLLM(BaseLLM):
         callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
 
         self.model = LlamaCpp(
-            model_path="llm_model\mistral-7b-instruct-v0.1.Q4_K_M.gguf",
+            model_path="llm_model/mistral-7b-instruct-v0.2.Q5_K_M.gguf",
             temperature=0.5,
             n_ctx=1024,
             max_tokens=1000,
