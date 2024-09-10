@@ -38,7 +38,6 @@ st.header("MistRAG")
 # >>>> UI interations <<<<
 
 def handle_user_input(user_input):
-    # TODO Add memory
     with st.spinner(""):
         response = st.session_state.conversation.chat(user_input)
     print(response)

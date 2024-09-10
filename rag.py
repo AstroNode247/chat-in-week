@@ -9,7 +9,7 @@ from langchain_community.vectorstores import Milvus
 from model import ChatGemini, BaseLLM
 
 
-class FileLoader(ABC):
+class Loader(ABC):
     def __init__(self):
         self.collection_name = None
         self.docs = None
@@ -41,7 +41,7 @@ class FileLoader(ABC):
         return db
 
 
-class PDFLoader(FileLoader):
+class PDFLoader(Loader):
     def __init__(self):
         super().__init__()
 
@@ -50,7 +50,7 @@ class PDFLoader(FileLoader):
         self.docs = loader.load()
 
 
-class CSVParser(FileLoader):
+class CSVParser(Loader):
     def __init__(self):
         super().__init__()
 

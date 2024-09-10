@@ -43,9 +43,10 @@ class OrderIdIncompleteTool(BaseTool):
     
 
 class RecommendTools(BaseTool):
-    name = "Here are some recommendations based on the user ID"
-    description = """Usefull for when the users don't know what to do but interact with you only if you know his ID. 
-    The Json below are the recommendation that provided by an API."""
+    name = "Recommend stuff"
+    description = """Use this tool to recommend new products to user, only if you know the user ID.
+    It uses the recommendation already done by the json response. You don't have do any recommenndation,
+    you all have to do is to use show the JSON. Add some description to your recommendation"""
 
     def _run(self, user_id: str):
         try:

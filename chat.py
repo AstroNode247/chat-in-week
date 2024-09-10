@@ -12,7 +12,7 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.tools import BaseTool
 
 from model import BaseLLM, ChatGemini
-from rag import FileLoader, PDFLoader
+from rag import Loader, PDFLoader
 from tools import OrderTool, OrderIdIncompleteTool, RecommendTools
 
 
@@ -183,7 +183,7 @@ class ChatWithData(Chat):
         self._chain = None
         self._query_chain = None
 
-    def make_chain(self, collection_name: str, loader: FileLoader = None, path: str = None):
+    def make_chain(self, collection_name: str, loader: Loader = None, path: str = None):
         self.db = loader.load_embeddings(path=path, collection_name=collection_name, llm=self.llm)
         retriever = self.db.as_retriever()
 
